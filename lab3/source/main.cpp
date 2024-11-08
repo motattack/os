@@ -227,9 +227,9 @@ int main(int argc, char **argv) {
 
     if (!Process::is_process_alive(shared_memory.Data()->writer_pid)) {
         shared_memory.Lock();
-        is_writer = true;
         shared_memory.Data()->writer_pid = pid;
         shared_memory.Unlock();
+        is_writer = true;
     }
 
     if (argc == 2) {
@@ -269,17 +269,19 @@ int main(int argc, char **argv) {
         logger.printCounter();
     }
 
+    if (!is_copy_command) {
+        logger.enableConsoleOutput();
+        counter.enableConsoleOutput();
+
+        counter.Start();
+        counter.WaitStartup();
+    }
+
     logger.Start();
     logger.WaitStartup();
 
     if (is_writer) {
-        logger.enableConsoleOutput();
-        counter.enableConsoleOutput();
         launcher.enableConsoleOutput();
-
-        counter.Start();
-        counter.WaitStartup();
-
         launcher.Start();
         launcher.WaitStartup();
     }

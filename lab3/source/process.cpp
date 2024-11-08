@@ -84,7 +84,6 @@ int Process::get_my_pid() {
 
 bool Process::is_process_alive(int pid) {
 #ifdef WIN32
-    // On Windows, try to open the process to see if it's alive
     const HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
     if (hProcess == nullptr) {
         return false;
@@ -95,7 +94,6 @@ bool Process::is_process_alive(int pid) {
     }
     return false;
 #else
-    // On Unix-like systems, use kill with signal 0 to check if the process exists
-    return kill(pid, 0) == 0;  // If kill returns 0, the process is alive
+    return kill(pid, 0) == 0;
 #endif
 }
