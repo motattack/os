@@ -10,6 +10,28 @@
 #define TIMEOUT_2_SEC 2
 #define TIMEOUT_3_SEC 3
 
+char *getCurrentTime() {
+    auto now = std::chrono::system_clock::now();
+    auto now_c = std::chrono::system_clock::to_time_t(now);
+    auto now_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(now);
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now_ms.time_since_epoch()) % 1000;
+
+    std::tm *local_time = std::localtime(&now_c);
+
+    static char time_str[24]; // Массив для хранения времени в формате "ДД.ММ.ГГГГ ЧЧ:ММ:СС.мс"
+
+    std::snprintf(time_str, sizeof(time_str), "%02d.%02d.%04d %02d:%02d:%02d.%03d",
+                  local_time->tm_mday, // День
+                  local_time->tm_mon + 1, // Месяц (от 0 до 11)
+                  local_time->tm_year + 1900, // Год с учетом 1900
+                  local_time->tm_hour, // Часы
+                  local_time->tm_min, // Минуты
+                  local_time->tm_sec, // Секунды
+                  ms.count()); // Миллисекунды
+
+    return time_str;
+}
+
 template<class T>
 class Counter final : public cplib::Thread {
 public:
@@ -19,13 +41,13 @@ public:
 
     int MainStart() override {
         if (_display_console)
-            std::cout << "Counter thread starting..." << std::endl;
+            std::cout << "Counter: starting..." << std::endl;
         return 0;
     }
 
     void MainQuit() override {
         if (_display_console)
-            std::cout << "Counter thread stopping..." << std::endl;
+            std::cout << "Counter: stopping..." << std::endl;
     }
 
     void Main() override {
@@ -76,7 +98,7 @@ public:
 
     int MainStart() override {
         if (_display_console)
-            std::cout << "Launcher thread starting..." << std::endl;
+            std::cout << "Launcher: starting..." << std::endl;
 
         for (int i = 0; i < _clone_count; i++) {
             _clones[i].Start();
@@ -88,7 +110,7 @@ public:
 
     void MainQuit() override {
         if (_display_console)
-            std::cout << "Launcher thread stopping..." << std::endl;
+            std::cout << "Launcher: stopping..." << std::endl;
 
         for (int i = 0; i < _clone_count; i++) {
             _clones[i].Stop();
@@ -131,28 +153,24 @@ public:
 
     int MainStart() override {
         if (_display_console)
-            std::cout << "Logger thread starting..." << std::endl;
+            std::cout << "Logger: starting..." << std::endl;
 
         _log = fopen("log.txt", "a");
+
         if (!_log)
             return 1;
 
-        auto now = std::chrono::system_clock::now();
-        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-
-        fprintf(_log, "PID: %d. Logger thread started at %s", _pid, std::ctime(&now_c));
+        fprintf(_log, "[%s] PID: %d. Logger: started.\n", getCurrentTime(), _pid);
+        fflush(_log);
 
         return 0;
     }
 
     void MainQuit() override {
         if (_display_console)
-            std::cout << "Logger thread stopping..." << std::endl;
+            std::cout << "Logger: stopping..." << std::endl;
 
-        auto now = std::chrono::system_clock::now();
-        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-
-        fprintf(_log, "PID: %d. Logger thread stopped at %s", _pid, std::ctime(&now_c));
+        fprintf(_log, "[%s] PID %d. Logger: stopped.\n", getCurrentTime(), _pid);
         fclose(_log);
     }
 
@@ -161,12 +179,11 @@ public:
             CancelPoint();
             Sleep(TIMEOUT_3_SEC);
 
-            auto now = std::chrono::system_clock::now();
-            std::time_t now_c = std::chrono::system_clock::to_time_t(now);
             if (!_message.empty()) {
                 fprintf(_log, "%s", _message.c_str());
             }
-            fprintf(_log, "PID #%d Counter: %d at %s", _pid, _ptr_shared_data->Data()->counter, std::ctime(&now_c));
+            fprintf(_log, "[%s] PID %d: counter=%d.\n", getCurrentTime(), _pid, _ptr_shared_data->Data()->counter);
+            fflush(_log);
         }
     }
 
@@ -230,9 +247,10 @@ int main(int argc, char **argv) {
         }
     }
 
+    std::string progName = argv[0];
     Clone clones[2] = {
-        Clone("./main copy_1"),
-        Clone("./main copy_2")
+        Clone(progName + " copy_1"), // Using argv[0] and appending " copy_1"
+        Clone(progName + " copy_2") // Using argv[0] and appending " copy_2"
     };
 
     auto counter = Counter(&shared_memory);
@@ -246,13 +264,15 @@ int main(int argc, char **argv) {
         shared_memory.Unlock();
     }
 
+    if (is_writer) {
+        std::cout << "Writer initialized, PID: " << pid << std::endl;
+        logger.printCounter();
+    }
+
     logger.Start();
     logger.WaitStartup();
 
     if (is_writer) {
-        std::cout << "Writer initialized, PID: " << pid << std::endl;
-        logger.printCounter();
-
         logger.enableConsoleOutput();
         counter.enableConsoleOutput();
         launcher.enableConsoleOutput();
