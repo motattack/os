@@ -231,8 +231,8 @@ int main(int argc, char **argv) {
     }
 
     Clone clones[2] = {
-        Clone("main copy_1"),
-        Clone("main copy_2")
+        Clone("./main copy_1"),
+        Clone("./main copy_2")
     };
 
     auto counter = Counter(&shared_memory);
