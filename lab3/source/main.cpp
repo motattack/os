@@ -211,7 +211,7 @@ private:
 struct Data {
     int counter = 0;
     bool writer_is_running = false;
-    bool log_is_free = true;
+    int writer_pid = -1;
 };
 
 int main(int argc, char **argv) {
@@ -224,6 +224,13 @@ int main(int argc, char **argv) {
     int pid = Process::get_my_pid();
     bool is_writer = false;
     bool is_copy_command = false;
+
+    if (!Process::is_process_alive(shared_memory.Data()->writer_pid)) {
+        shared_memory.Lock();
+        is_writer = true;
+        shared_memory.Data()->writer_pid = pid;
+        shared_memory.Unlock();
+    }
 
     if (argc == 2) {
         if (strcmp(argv[1], "copy_1") == 0) {
@@ -257,13 +264,6 @@ int main(int argc, char **argv) {
     auto logger = Logger(&shared_memory, pid);
     auto launcher = Launcher(clones, 2);
 
-    if (!shared_memory.Data()->writer_is_running and !is_copy_command) {
-        shared_memory.Lock();
-        is_writer = true;
-        shared_memory.Data()->writer_is_running = is_writer;
-        shared_memory.Unlock();
-    }
-
     if (is_writer) {
         std::cout << "Writer initialized, PID: " << pid << std::endl;
         logger.printCounter();
@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
     }
 
     std::string command;
-    while (is_writer) {
+    while (!is_copy_command) {
         std::cout << "Enter new counter value (or 'exit' to stop): " << std::endl;
         std::getline(std::cin, command);
         if (command == "exit" or command == "e" or command == "q" or command == "quit") {
