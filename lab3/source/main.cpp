@@ -270,6 +270,7 @@ int main(int argc, char **argv) {
     }
 
     if (!is_copy_command) {
+        std::cout << "My PID: " << pid << std::endl;
         logger.enableConsoleOutput();
         counter.enableConsoleOutput();
 
@@ -288,6 +289,7 @@ int main(int argc, char **argv) {
 
     std::string command;
     while (!is_copy_command) {
+        std::cout << "Current writer PID: " << shared_memory.Data()->writer_pid << std::endl;
         std::cout << "Enter new counter value (or 'exit' to stop): " << std::endl;
         std::getline(std::cin, command);
         if (command == "exit" or command == "e" or command == "q" or command == "quit") {
