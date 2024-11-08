@@ -209,13 +209,13 @@ int main(int argc, char **argv) {
     bool is_copy_command = false;
 
     if (argc == 2) {
-        if (stricmp(argv[1], "copy_1") == 0) {
+        if (strcmp(argv[1], "copy_1") == 0) {
             shared_memory.Lock();
             shared_memory.Data()->counter += 10;
             shared_memory.Unlock();
 
             is_copy_command = true;
-        } else if (stricmp(argv[1], "copy_2") == 0) {
+        } else if (strcmp(argv[1], "copy_2") == 0) {
             shared_memory.Lock();
             shared_memory.Data()->counter *= 2;
             shared_memory.Unlock();
@@ -231,8 +231,8 @@ int main(int argc, char **argv) {
     }
 
     Clone clones[2] = {
-        Clone("main.exe copy_1"),
-        Clone("main.exe copy_2")
+        Clone("main copy_1"),
+        Clone("main copy_2")
     };
 
     auto counter = Counter(&shared_memory);
