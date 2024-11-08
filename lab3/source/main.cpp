@@ -9,6 +9,7 @@
 #define TIMEOUT_1_SEC 1
 #define TIMEOUT_2_SEC 2
 #define TIMEOUT_3_SEC 3
+#define PID_DOES_NOT_EXIST (-44)
 
 char *getCurrentTime() {
     auto now = std::chrono::system_clock::now();
@@ -210,8 +211,7 @@ private:
 
 struct Data {
     int counter = 0;
-    bool writer_is_running = false;
-    int writer_pid = -1;
+    int writer_pid = PID_DOES_NOT_EXIST;
 };
 
 int main(int argc, char **argv) {
