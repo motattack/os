@@ -101,6 +101,10 @@ public:
         if (_display_console)
             std::cout << "Launcher: starting..." << std::endl;
 
+        _log = fopen("log.txt", "a");
+        if (!_log)
+            return 1;
+
         for (int i = 0; i < _clone_count; i++) {
             _clones[i].Start();
             _clones[i].WaitStartup();
@@ -117,6 +121,8 @@ public:
             _clones[i].Stop();
             _clones[i].Join();
         }
+
+        fclose(_log);
     }
 
     void Main() override {
@@ -128,6 +134,9 @@ public:
                 if (_clones[i].ThreadState() == STATE_STOPPED) {
                     _clones[i].Start();
                     _clones[i].WaitStartup();
+                } else {
+                    fprintf(_log, "[%s] Child: %d. still alive.\n", getCurrentTime(), i + 1);
+                    fflush(_log);
                 }
             }
         }
@@ -141,6 +150,7 @@ private:
     Clone *_clones;
     int _clone_count;
     bool _display_console;
+    FILE *_log;
 };
 
 template<class T>
