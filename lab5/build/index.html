@@ -153,6 +153,17 @@
             <input type="time" id="end-time" value="23:59:59">
             <button id="load-stats-btn">Загрузить статистику</button>
           </div>
+          <div>
+            <label>
+              <input type="radio" name="logType" value="all" checked> Всё
+            </label>
+            <label>
+              <input type="radio" name="logType" value="daily"> Средняя за день
+            </label>
+            <label>
+              <input type="radio" name="logType" value="hourly"> Средняя за час
+            </label>
+          </div>
           <table class="statistics-table">
             <thead>
               <tr>
@@ -164,6 +175,8 @@
               <!-- Заполняется динамически -->
             </tbody>
           </table>
+          <button id="prev-page-btn">Previous</button>
+          <button id="next-page-btn">Next</button>
         </div>
       </section>
     </main>
@@ -173,91 +186,118 @@
       </div>
     </footer>
     <script>
-      document.addEventListener('DOMContentLoaded', () => {
-        // Получаем текущую локальную дату
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0'); // Добавляем 1, так как месяцы идут с 0
-        const day = String(today.getDate()).padStart(2, '0');
-        // Форматируем дату в формате YYYY-MM-DD
-        const formattedDate = `${year}-${month}-${day}`;
-        // Устанавливаем текущую дату в поля
-        document.getElementById('start-date').value = formattedDate;
-        document.getElementById('end-date').value = formattedDate;
-        const currentTemperatureEl = document.getElementById('current-temperature');
-        const statisticsTable = document.getElementById('statistics-table');
-        const startDateInput = document.getElementById('start-date');
-        const startTimeInput = document.getElementById('start-time');
-        const endDateInput = document.getElementById('end-date');
-        const endTimeInput = document.getElementById('end-time');
-        const loadStatsBtn = document.getElementById('load-stats-btn');
-        const currentWeatherSection = document.querySelector('.current-weather');
-        const statisticsTableHeaders = document.querySelectorAll('.statistics-table th');
-        let lastStatsData = [];
-        // Функция для обновления текущей температуры
-        async function updateCurrentTemperature() {
-          try {
-            const response = await fetch('http://localhost/current-temperature');
-            const data = await response.json();
-            const temperature = parseFloat(data[0].temperature);
-            currentTemperatureEl.innerHTML = `${temperature.toFixed(1)} °C`;
-            if (temperature < 0) {
-              currentWeatherSection.style.background = '#edf2f8';
-              statisticsTableHeaders.forEach(th => {
-                th.style.background = '#356fac';
-              });
-              currentTemperatureEl.style.color = '#5f8bd0';
-            } else {
-              currentWeatherSection.style.background = '#f8f3ed';
-              statisticsTableHeaders.forEach(th => {
-                th.style.background = '#ac4835';
-              });
-              currentTemperatureEl.style.color = '#d05f64';
-            }
-          } catch (error) {
-            console.error('Ошибка при получении текущей температуры:', error);
-            currentTemperatureEl.innerHTML = 'Ошибка загрузки';
-          }
-        }
-        // Функция для загрузки статистики за выбранный период
-        async function loadStatistics() {
-          const startDate = startDateInput.value;
-          const startTime = startTimeInput.value || '00:00:00';
-          const endDate = endDateInput.value;
-          const endTime = endTimeInput.value || '23:59:59';
-          const startDateTime = `${startDate}+${startTime}`;
-          const endDateTime = `${endDate}+${endTime}`;
-          try {
-            const response = await fetch(`http://localhost/stats?logType=all&startDate=${startDateTime}&endDate=${endDateTime}`);
-            const data = await response.json();
-            // Проверка изменений
-            if (JSON.stringify(data) !== JSON.stringify(lastStatsData)) {
-              lastStatsData = data;
-              // Обновление таблицы
-              statisticsTable.innerHTML = '';
-              data.forEach(entry => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-            
-									<td>${new Date(entry.timestamp).toLocaleString('ru-RU')}</td>
-									<td>${parseFloat(entry.temperature).toFixed(1)} °C</td>
-          `;
-                statisticsTable.appendChild(row);
-              });
-            }
-          } catch (error) {
-            console.error('Ошибка при загрузке статистики:', error);
-          }
-        }
-        // Начальная загрузка данных
-        updateCurrentTemperature();
-        loadStatistics();
-        // Обновление статистики по нажатию кнопки
-        loadStatsBtn.addEventListener('click', loadStatistics);
-        // Периодическое обновление данных
-        setInterval(updateCurrentTemperature, 1000);
-        setInterval(loadStatistics, 1000);
-      });
-    </script>
+	  document.addEventListener('DOMContentLoaded', () => {
+		const today = new Date();
+		const year = today.getFullYear();
+		const month = String(today.getMonth() + 1).padStart(2, '0');
+		const day = String(today.getDate()).padStart(2, '0');
+		const formattedDate = `${year}-${month}-${day}`;
+		document.getElementById('start-date').value = formattedDate;
+		document.getElementById('end-date').value = formattedDate;
+
+		const currentTemperatureEl = document.getElementById('current-temperature');
+		const statisticsTable = document.getElementById('statistics-table');
+		const startDateInput = document.getElementById('start-date');
+		const startTimeInput = document.getElementById('start-time');
+		const endDateInput = document.getElementById('end-date');
+		const endTimeInput = document.getElementById('end-time');
+		const loadStatsBtn = document.getElementById('load-stats-btn');
+		const prevPageBtn = document.getElementById('prev-page-btn');
+		const nextPageBtn = document.getElementById('next-page-btn');
+		const currentWeatherSection = document.querySelector('.current-weather');
+		const statisticsTableHeaders = document.querySelectorAll('.statistics-table th');
+		let lastStatsData = [];
+		let currentOffset = 1;
+		const limit = 10;
+
+		const baseUrl = window.location.origin;
+
+		let selectedLogType = 'all';
+
+		const radioButtons = document.querySelectorAll('input[name="logType"]');
+		radioButtons.forEach(radio => {
+		  radio.addEventListener('change', (e) => {
+			selectedLogType = e.target.value;
+			loadStatistics();
+		  });
+		});
+
+		async function updateCurrentTemperature() {
+		  try {
+			const response = await fetch(`${baseUrl}/current-temperature`);
+			const data = await response.json();
+			const temperature = parseFloat(data[0].temperature);
+			currentTemperatureEl.innerHTML = `${temperature.toFixed(1)} °C`;
+			if (temperature < 0) {
+			  currentWeatherSection.style.background = '#edf2f8';
+			  statisticsTableHeaders.forEach(th => {
+				th.style.background = '#356fac';
+			  });
+			  currentTemperatureEl.style.color = '#5f8bd0';
+			} else {
+			  currentWeatherSection.style.background = '#f8f3ed';
+			  statisticsTableHeaders.forEach(th => {
+				th.style.background = '#ac4835';
+			  });
+			  currentTemperatureEl.style.color = '#d05f64';
+			}
+		  } catch (error) {
+			console.error('Error while fetching current temperature:', error);
+			currentTemperatureEl.innerHTML = 'Error loading';
+		  }
+		}
+
+		async function loadStatistics() {
+		  const startDate = startDateInput.value;
+		  const startTime = startTimeInput.value || '00:00:00';
+		  const endDate = endDateInput.value;
+		  const endTime = endTimeInput.value || '23:59:59';
+		  const startDateTime = `${startDate}+${startTime}`;
+		  const endDateTime = `${endDate}+${endTime}`;
+		  try {
+			const response = await fetch(`${baseUrl}/stats?logType=${selectedLogType}&startDate=${startDateTime}&endDate=${endDateTime}&offset=${currentOffset}&limit=${limit}`);
+			const data = await response.json();
+			if (JSON.stringify(data) !== JSON.stringify(lastStatsData)) {
+			  lastStatsData = data;
+			  statisticsTable.innerHTML = '';
+			  data.forEach(entry => {
+				const row = document.createElement('tr');
+				row.innerHTML = `
+				  <td>${new Date(entry.timestamp).toLocaleString('ru-RU')}</td>
+				  <td>${parseFloat(entry.temperature).toFixed(1)} °C</td>
+				`;
+				statisticsTable.appendChild(row);
+			  });
+			}
+			updatePaginationButtons();
+		  } catch (error) {
+			console.error('Error while loading statistics:', error);
+		  }
+		}
+
+		function updatePaginationButtons() {
+		  prevPageBtn.disabled = currentOffset <= 1;
+		  nextPageBtn.disabled = lastStatsData.length < limit;
+		}
+
+		prevPageBtn.addEventListener('click', () => {
+		  if (currentOffset > 1) {
+			currentOffset--;
+			loadStatistics();
+		  }
+		});
+
+		nextPageBtn.addEventListener('click', () => {
+		  currentOffset++;
+		  loadStatistics();
+		});
+
+		updateCurrentTemperature();
+		loadStatistics();
+		loadStatsBtn.addEventListener('click', loadStatistics);
+		setInterval(updateCurrentTemperature, 1000);
+		setInterval(loadStatistics, 1000);
+	  });
+	</script>
   </body>
 </html>

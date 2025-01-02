@@ -70,7 +70,10 @@ std::string convertToUTC(const std::string &localTimeStr) {
 }
 
 std::vector<LogEntry> queryDatabase(const std::string &logType, const std::string &startDate,
-                                    const std::string &endDate) {
+                                    const std::string &endDate, int offset, int limit) {
+    // Ensure that the limit does not exceed 100
+    limit = std::min(limit, 100);
+
     sqlite3 *db;
     if (sqlite3_open("logs.db", &db) != SQLITE_OK) {
         std::cerr << "Failed to open database!" << std::endl;
@@ -82,13 +85,15 @@ std::vector<LogEntry> queryDatabase(const std::string &logType, const std::strin
 
     std::vector<LogEntry> logs;
     std::string query =
-        "SELECT datetime(timestamp, 'localtime') AS local_timestamp, log_type, temperature FROM logs WHERE log_type = ? AND timestamp BETWEEN ? AND ?;";
+        "SELECT datetime(timestamp, 'localtime') AS local_timestamp, log_type, temperature FROM logs WHERE log_type = ? AND timestamp BETWEEN ? AND ? LIMIT ? OFFSET ?;";
     sqlite3_stmt *stmt;
 
     if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
         sqlite3_bind_text(stmt, 1, logType.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_text(stmt, 2, startDateUTC.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_text(stmt, 3, endDateUTC.c_str(), -1, SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 4, limit);   // Bind limit
+        sqlite3_bind_int(stmt, 5, offset);  // Bind offset
 
         while (sqlite3_step(stmt) == SQLITE_ROW) {
             LogEntry entry;
@@ -105,6 +110,7 @@ std::vector<LogEntry> queryDatabase(const std::string &logType, const std::strin
     sqlite3_close(db);
     return logs;
 }
+
 
 LogEntry queryLastTemperature() {
     sqlite3 *db;
@@ -179,19 +185,21 @@ void handleClient(SOCKET clientSocket) {
         std::string html = readFile("index.html");
         response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" + html;
     } else if (request.find("GET /stats") != std::string::npos) {
-        size_t queryStart = request.find("?");
-        size_t queryEnd = request.find(" ", queryStart);
-        std::string queryString = request.substr(queryStart + 1, queryEnd - queryStart - 1);
+		size_t queryStart = request.find("?");
+		size_t queryEnd = request.find(" ", queryStart);
+		std::string queryString = request.substr(queryStart + 1, queryEnd - queryStart - 1);
 
-        auto params = parseQueryString(queryString);
-        std::string logType = params.count("logType") ? params["logType"] : "all";
-        std::string startDate = params.count("startDate") ? params["startDate"] : "1960-01-01 00:00:00";
-        std::string endDate = params.count("endDate") ? params["endDate"] : "2038-01-19 23:59:59";
+		auto params = parseQueryString(queryString);
+		std::string logType = params.count("logType") ? params["logType"] : "all";
+		std::string startDate = params.count("startDate") ? params["startDate"] : "1960-01-01 00:00:00";
+		std::string endDate = params.count("endDate") ? params["endDate"] : "2038-01-19 23:59:59";
+		int offset = params.count("offset") ? std::stoi(params["offset"]) : 0;
+		int limit = params.count("limit") ? std::stoi(params["limit"]) : 50;
 
-        auto logs = queryDatabase(logType, startDate, endDate);
-        std::string json = generateJSON(logs);
+		auto logs = queryDatabase(logType, startDate, endDate, offset, limit);
+		std::string json = generateJSON(logs);
 
-        response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n" + json;
+		response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n" + json;
     } else if (request.find("GET /current-temperature") != std::string::npos) {
         LogEntry lastTemperature = queryLastTemperature();
 
