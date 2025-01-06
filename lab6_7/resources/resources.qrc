@@ -1,0 +1,16 @@
+<RCC>
+    <qresource prefix="/kerfur">
+        <file>images/kerfur_blink_neutral.svg</file>
+        <file>images/kerfur_evil_mad.svg</file>
+        <file>images/kerfur_evil_sly.svg</file>
+        <file>images/kerfur_murmur_eyes.svg</file>
+        <file>images/kerfur_murmur_tongue.svg</file>
+        <file>images/kerfur_neutral_center.svg</file>
+        <file>images/kerfur_neutral_rightup.svg</file>
+        <file>images/kerfur_serious.svg</file>
+        <file>images/kerfur_spiral_eyes.svg</file>
+        <file>audio/kerfur2meow-01.ogg</file>
+        <file>audio/kerfur2meow-02.ogg</file>
+        <file>audio/kerfur2meow-03.ogg</file>
+    </qresource>
+</RCC>

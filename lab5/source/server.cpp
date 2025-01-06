@@ -28,7 +28,8 @@
 // Сервер запустится на localhost
 // Порт сервера — 80. Для Linux требуется запуск с правами root (sudo),
 // так как порты ниже 1024 могут быть открыты только суперпользователем.
-#define SERVER_PORT 80
+#define DEFAULT_SERVER_PORT 80
+#define DEFAULT_SERVER_ADDRESS "127.0.0.1"
 
 struct LogEntry {
     std::string timestamp;
@@ -52,13 +53,13 @@ std::string convertToUTC(const std::string &localTimeStr) {
     ss >> std::get_time(&tm_utc, "%Y-%m-%d %H:%M:%S");
 
     if (ss.fail()) {
-        std::cerr << "Ошибка парсинга времени" << std::endl;
+        std::cerr << "Error parsing time" << std::endl;
         return "";
     }
 
     std::time_t local_time = std::mktime(&tm_utc);
     if (local_time == -1) {
-        std::cerr << "Ошибка преобразования времени" << std::endl;
+        std::cerr << "Error converting time" << std::endl;
         return "";
     }
 
@@ -71,7 +72,6 @@ std::string convertToUTC(const std::string &localTimeStr) {
 
 std::vector<LogEntry> queryDatabase(const std::string &logType, const std::string &startDate,
                                     const std::string &endDate, int offset, int limit) {
-    // Ensure that the limit does not exceed 100
     limit = std::min(limit, 100);
 
     sqlite3 *db;
@@ -92,8 +92,8 @@ std::vector<LogEntry> queryDatabase(const std::string &logType, const std::strin
         sqlite3_bind_text(stmt, 1, logType.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_text(stmt, 2, startDateUTC.c_str(), -1, SQLITE_STATIC);
         sqlite3_bind_text(stmt, 3, endDateUTC.c_str(), -1, SQLITE_STATIC);
-        sqlite3_bind_int(stmt, 4, limit);   // Bind limit
-        sqlite3_bind_int(stmt, 5, offset);  // Bind offset
+        sqlite3_bind_int(stmt, 4, limit);
+        sqlite3_bind_int(stmt, 5, offset);
 
         while (sqlite3_step(stmt) == SQLITE_ROW) {
             LogEntry entry;
@@ -110,7 +110,6 @@ std::vector<LogEntry> queryDatabase(const std::string &logType, const std::strin
     sqlite3_close(db);
     return logs;
 }
-
 
 LogEntry queryLastTemperature() {
     sqlite3 *db;
@@ -224,7 +223,15 @@ void handleClient(SOCKET clientSocket) {
 #endif
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    if (argc < 2 || argc > 3) {
+        std::cerr << "Usage: " << argv[0] << " [ip] [port]" << std::endl;
+        return -1;
+    }
+
+    std::string serverAddress = argv[1];
+    int serverPort = (argc == 3) ? std::stoi(argv[2]) : DEFAULT_SERVER_PORT;
+
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
@@ -241,8 +248,8 @@ int main() {
 
     sockaddr_in serverAddr{};
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(SERVER_PORT);
-    serverAddr.sin_addr.s_addr = INADDR_ANY;
+    serverAddr.sin_port = htons(serverPort);
+    inet_pton(AF_INET, serverAddress.c_str(), &serverAddr.sin_addr);
 
     if (bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
         std::cerr << "Error binding socket!" << std::endl;
@@ -250,7 +257,7 @@ int main() {
     }
 
     listen(serverSocket, 10);
-    std::cout << "Server is running on port " << SERVER_PORT << "..." << std::endl;
+    std::cout << "Server is running on " << serverAddress << ":" << serverPort << "..." << std::endl;
 
     while (true) {
         SOCKET clientSocket = accept(serverSocket, nullptr, nullptr);
